@@ -1,0 +1,42 @@
+#!/bin/bash - 
+
+# Arch Linux Tools
+
+# 1. Install dependencies
+#   pacman -S --needed --noconfirm xml2 curl
+
+# 2. Create a crontab job
+#   00 * * * * ~/.arch-news.sh fetch
+
+cached_news=~/.arch-latest-news
+feed_url=https://www.archlinux.org/feeds/news/
+
+fetch() {
+	output=$(curl -s $feed_url | tr '\n' ' ' | xml2 | egrep -m4 "/rss/channel/item/(title|description|link|pubDate)" | sed -e :a -e 's/<[^>]*>//g;/</N;//ba')
+	echo -e "$output" | sed -e 's/\/rss\/channel\/item\/title=\(.*\)$/\\e[1;34m:: \1 \\e[1;33m@\\e[0m/;tx;d;:x' | tr '\n' ' ' > $cached_news
+	echo -e "$output" | sed -e 's/\/rss\/channel\/item\/pubDate=\(.*\)$/\\e[1;1m\1\\e[0m/;tx;d;:x' >> $cached_news
+	echo -e "$output" | sed -e 's/\/rss\/channel\/item\/link=\(.*\)$/\\e[1;32m:: \1\\e[0m/;tx;d;:x' >> $cached_news
+	echo -e "$output" | sed -e 's/\/rss\/channel\/item\/description=\(.*\)$/\\e[1;35m:: \1\\e[0m/;tx;d;:x' >> $cached_news
+}
+
+print() {
+	if [ -f "$cached_news" ]; then
+		echo -e "$(<$cached_news)"
+	fi
+}
+
+update() {
+	clear
+	fetch
+	print
+	echo
+	sudo pacman -Su
+	read && packer -Syu --noconfirm --auronly
+}
+
+if [ "$1" == "update" ]; then
+	update
+else
+	echo "usage: arch <update>"
+fi
+
